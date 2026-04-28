@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <rect width="300" height="300" fill="#f3f4f6"/>
+  <rect x="80" y="80" width="140" height="110" rx="8" fill="#d1d5db"/>
+  <circle cx="110" cy="105" r="14" fill="#9ca3af"/>
+  <polygon points="80,190 140,130 180,165 210,140 220,190" fill="#9ca3af"/>
+  <text x="150" y="230" text-anchor="middle" fill="#6b7280" font-size="14" font-family="sans-serif">Chưa có ảnh</text>
+</svg>
