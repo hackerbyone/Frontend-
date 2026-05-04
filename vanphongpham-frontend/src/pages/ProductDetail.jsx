@@ -1,0 +1,193 @@
+import { useEffect, useState } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import productApi from '../api/productApi'
+import { formatVND, resolveImageUrl } from '../utils/format'
+import { useCart } from '../contexts/CartContext'
+import Loading from '../components/Loading'
+import ProductCard from '../components/ProductCard'
+
+export default function ProductDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { addItem } = useCart()
+  const [product, setProduct] = useState(null)
+  const [related, setRelated] = useState([])
+  const [quantity, setQuantity] = useState(1)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    setQuantity(1)
+    productApi.getById(id)
+      .then((res) => {
+        setProduct(res)
+        if (res?.categoryId) {
+          productApi.getList({ categoryId: res.categoryId, pageSize: 6 })
+            .then((r) => {
+              const list = r?.items || []
+              setRelated(list.filter((x) => x.id !== res.id).slice(0, 5))
+            })
+            .catch(() => {})
+        }
+      })
+      .catch(() => setProduct(null))
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) return <Loading />
+  if (!product) {
+    return (
+      <div className="max-w-7xl mx-auto p-10 text-center text-gray-500">
+        Không tìm thấy sản phẩm.{' '}
+        <Link to="/products" className="text-primary-600 hover:underline">Quay lại</Link>
+      </div>
+    )
+  }
+
+  const disc = product.discountPercent ?? 0
+  const effectivePrice = disc > 0 ? product.price * (1 - disc / 100) : product.price
+
+  const handleAddCart = () => {
+    addItem({ ...product, price: effectivePrice }, quantity)
+  }
+
+  const handleBuyNow = () => {
+    addItem({ ...product, price: effectivePrice }, quantity)
+    navigate('/cart')
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6 fade-in">
+      {/* Breadcrumb */}
+      <nav className="text-sm text-gray-500 mb-4">
+        <Link to="/" className="hover:text-primary-600">Trang chủ</Link>
+        <span className="mx-2">/</span>
+        <Link to="/products" className="hover:text-primary-600">Sản phẩm</Link>
+        {product.categoryId && (
+          <>
+            <span className="mx-2">/</span>
+            <Link to={`/category/${product.categoryId}`} className="hover:text-primary-600">
+              {product.category?.name || 'Danh mục'}
+            </Link>
+          </>
+        )}
+        <span className="mx-2">/</span>
+        <span className="text-gray-700 line-clamp-1">{product.name}</span>
+      </nav>
+
+      {/* Chi tiết sản phẩm */}
+      <div className="bg-white rounded-lg p-6 grid md:grid-cols-2 gap-8">
+        {/* Ảnh */}
+        <div>
+          <div className="relative aspect-square bg-gray-50 rounded-lg overflow-hidden">
+            <img
+              src={resolveImageUrl(product.imageUrl)}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/600?text=No+Image' }}
+            />
+            {disc > 0 && (
+              <span className="absolute top-3 left-3 bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">
+                -{disc}%
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Thông tin */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-3">{product.name}</h1>
+
+          {/* Giá */}
+          {disc > 0 ? (
+            <div className="mb-4">
+              <div className="text-3xl font-bold text-red-600">{formatVND(effectivePrice)}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-gray-400 line-through text-lg">{formatVND(product.price)}</span>
+                <span className="bg-red-100 text-red-600 text-sm font-semibold px-2 py-0.5 rounded">
+                  Tiết kiệm {formatVND(product.price - effectivePrice)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-3xl font-bold text-primary-600 mb-4">{formatVND(product.price)}</div>
+          )}
+
+          {/* Thông tin chi tiết */}
+          <div className="border-t border-b py-4 mb-4 space-y-2 text-sm">
+            <div><span className="text-gray-500">Mã sản phẩm:</span> <b>#{product.id}</b></div>
+            {product.manufacturer && (
+              <div>
+                <span className="text-gray-500">Nhà sản xuất:</span>{' '}
+                <b className="text-gray-800">{product.manufacturer.name}</b>
+              </div>
+            )}
+            <div>
+              <span className="text-gray-500">Tình trạng:</span>{' '}
+              <b className={product.stock > 0 ? 'text-green-600' : 'text-red-600'}>
+                {product.stock > 0 ? `Còn hàng (${product.stock})` : 'Hết hàng'}
+              </b>
+            </div>
+          </div>
+
+          {product.description && (
+            <p className="text-gray-700 mb-6 leading-relaxed">{product.description}</p>
+          )}
+
+          {/* Chọn số lượng */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-sm text-gray-600">Số lượng:</span>
+            <div className="flex items-center border rounded">
+              <button
+                className="px-3 py-1 hover:bg-gray-100"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                disabled={product.stock <= 0}
+              >−</button>
+              <input
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, Math.min(product.stock || 99, +e.target.value || 1)))}
+                className="w-14 text-center outline-none py-1"
+                min={1}
+                max={product.stock || 99}
+                disabled={product.stock <= 0}
+              />
+              <button
+                className="px-3 py-1 hover:bg-gray-100"
+                onClick={() => setQuantity((q) => q + 1)}
+                disabled={product.stock <= 0}
+              >+</button>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleAddCart}
+              disabled={product.stock <= 0}
+              className="flex-1 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded font-medium transition-colors"
+            >
+              🛒 Thêm vào giỏ
+            </button>
+            <button
+              onClick={handleBuyNow}
+              disabled={product.stock <= 0}
+              className="flex-1 bg-accent-500 hover:bg-accent-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded font-medium text-center transition-colors"
+            >
+              Mua ngay
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Sản phẩm liên quan */}
+      {related.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Sản phẩm liên quan</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {related.map((p) => <ProductCard key={p.id} product={p} />)}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
